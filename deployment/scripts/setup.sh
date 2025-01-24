@@ -30,7 +30,7 @@ echo "MODE: $MODE"
 
 #Lets start the install/uninstall
 mkdir -p /opt/app/tmp/microfocus
-
+TMPDIR=/opt/app/tmp/microfocus
 if [[ "$MODE" = "install" ]]; then
    if [[ -d /opt/microfocus/VisualCOBOL/bin ]]; then
       echo -e "\nMicrofocus Visual COBOL was already installed. Uninstall it first before attempting to install it.\n"
