@@ -2,15 +2,15 @@
 
 ###############################################################################################################
 # Description:
-# This script automates the installation and uninstallation of <Applicaton Name>.
-# It dynamically sets the installation log file based on the detected <Applicaton Name> tarball
+# This script automates the installation and uninstallation of Visual Cobal v6.0.
+# It dynamically sets the installation log file based on the detected Visual Cobal v6.0 tarball
 # and performs cleanup during uninstallation.
 #
 # Usage:
-# To install <Applicaton Name>, place the <Applicaton Name> tarball in the same directory as this script
-# and run: ./<Applicaton Name>.sh
-# To uninstall <Applicaton Name>, simply run: ./<Applicaton Name>.sh uninstall
-# To update <Applicaton Name> replace the compressed file, repackage to nexus and then simply run: ./<Applicaton Name>.sh update
+# To install Visual Cobal v6.0, place the Visual Cobal v6.0 tarball in the same directory as this script
+# and run: ./Visual Cobal v6.0.sh
+# To uninstall Visual Cobal v6.0, simply run: ./Visual Cobal v6.0.sh uninstall
+# To update Visual Cobal v6.0 replace the compressed file, repackage to nexus and then simply run: ./Visual Cobal v6.0.sh update
 ###############################################################################################################
 
 ## Common Variables #############################################################################################
