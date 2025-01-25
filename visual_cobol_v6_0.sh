@@ -21,13 +21,15 @@ USER_ACCOUNT="asfrsvc"
 LICENSE='Visual_COBOL_for_Eclipse.mflic'
 INSTALL_BINARIES='setup_visualcobol_deveclipse_6.0_redhat_x86_64'
 UNINSTALL_BINARIES='Uninstall_VisualCOBOLEclipse6.0.sh'
-### Variables that Do Not Change Much ######
+
+## Variables that Do Not Change Much ######
 LOGDIR="/tmp"
 TMPDIR=/opt/app/tmp/microfocus
 DATE="$(date '+%Y-%m-%d %H:%M:%S')"
 HOSTNAME="$(uname -n)"
 
 YUM_PACKAGES="java-11-openjdk.x86_64 gcc.x86_64 spax.x86_64 glibc-*.i686 glibc-*.x86_64 glibc-devel-*.x86_64 glibc-devel.i686 libgcc-*.i686 libgcc-*.x86_64 libstdc++.x86_64 libstdc++-devel.x86_64 libstdc++-docs.x86_64 libstdc++.i686 libstdc++-devel.i686 gtk2-*.x86_64 libXtst-*.x86_64 libXtst-1.2.3-7.el8.i686 libcanberra-gtk3-0.30-18.el8.i686 libcanberra-gtk3-*.x86_64 PackageKit-gtk3-module-*.x86_64 webkit2gtk3.x86_64 xterm.x86_64 unzip.x86_64 cpp*x86_64"
+
 ## Common Functions  #############################################################################################
 
 log() {
@@ -72,16 +74,24 @@ install() {
         exit 1
     fi
 
-    # Install required libraries
+    log Install required libraries
     install_yum_packages
 
-    # Ensure TMPDIR exists
-    mkdir -p "${TMPDIR}"
+    log Dynamically locate required files ######
+    BASH_PROFILE_FILE=$(find . -name "bash_profile" -type f 2>/dev/null)
+    LICENSE_FILE=$(find . -name "${LICENSE}" -type f 2>/dev/null)
+    INSTALL_BINARIES_FILE=$(find . -name "${INSTALL_BINARIES}" -type f 2>/dev/null)
 
-    # Move necessary files
-    mv ${deploy_dir}/bash_profile "${TMPDIR}"
-    mv ${deploy_dir}/"${LICENSE}" "${TMPDIR}"
-    mv ${deploy_dir}/"${INSTALL_BINARIES}" "${TMPDIR}"
+    log Validate that files are found before proceeding
+    if [[ -z "${BASH_PROFILE_FILE}" || -z "${LICENSE_FILE}" || -z "${INSTALL_BINARIES_FILE}" ]]; then
+        echo "Error: Required files not found in the current directory or subdirectories."
+        echo "Missing files:"
+        [[ -z "${BASH_PROFILE_FILE}" ]] && echo "  - bash_profile"
+        [[ -z "${LICENSE_FILE}" ]] && echo "  - ${LICENSE}"
+        [[ -z "${INSTALL_BINARIES_FILE}" ]] && echo "  - ${INSTALL_BINARIES}"
+        exit 1
+    fi
+
     
     # Create user account if needed
     grep "${USER_ACCOUNT}" /etc/passwd > /dev/null 2>&1
@@ -89,7 +99,7 @@ install() {
         log "Creating ${USER_ACCOUNT} account..."
         /usr/sbin/useradd -g xbag-dev-devl-asfr -d "/home/${USER_ACCOUNT}" -m -s /bin/bash -c "GENERIC, ASFR Service Account, [ISVC]" "${USER_ACCOUNT}"
         mv "/home/${USER_ACCOUNT}/.bash_profile" "/home/${USER_ACCOUNT}/.bash_profile.${DATE}"
-        cp -p "${TMPDIR}/bash_profile" "/home/${USER_ACCOUNT}/.bash_profile"
+        cp -p "${BASH_PROFILE_FILE}" "/home/${USER_ACCOUNT}/.bash_profile"
         chown -R "${USER_ACCOUNT}:xbag-dev-devl-asfr" "/home/${USER_ACCOUNT}"
         log "${USER_ACCOUNT} Account created!"
     fi
@@ -100,11 +110,11 @@ install() {
     sed -i '/#SELINUX=enforcing/a SELINUX=disabled' /etc/selinux/config
 
     # Perform installation
-    chmod 755 "${TMPDIR}/${INSTALL_BINARIES}"
-    "${TMPDIR}/${INSTALL_BINARIES}" -silent -IacceptEULA -installlocation="${INSTALLDIR}" >> "${LOGDIR}/${LOG_FILE}"
+    chmod 755 "${INSTALL_BINARIES_FILE}"
+    "${INSTALL_BINARIES_FILE}" -silent -IacceptEULA -installlocation="${INSTALLDIR}" >> "${LOGDIR}/${LOG_FILE}"
 
     # Install license
-    "${INSTALLDIR}/bin/cesadmintool.sh" -install "${TMPDIR}/${LICENSE}" >> "${LOGDIR}/${LOG_FILE}"
+    "${INSTALLDIR}/bin/cesadmintool.sh" -install "${LICENSE_FILE}" >> "${LOGDIR}/${LOG_FILE}"
 
     # Clean up
     chmod -R 775 /opt/microfocus
@@ -170,5 +180,5 @@ case ${MODE} in
     install) install ;;
     uninstall) uninstall ;;
     update) update ;;
-    *) echo "Invalid mode. Usage: MODE=(install|uninstall|update)" ; exit 1 ;;
+    *) log "Invalid mode. Usage: MODE=(install|uninstall|update)" ; exit 1 ;;
 esac
