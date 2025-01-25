@@ -14,9 +14,10 @@
 ###############################################################################################################
 
 ## Common Variables #############################################################################################
-VERSION='6.0'
 EMAIL="christopher.g.pouliot@gmail.com,${EMAIL}"
 INSTALLDIR="/opt/microfocus/VisualCOBOL"
+
+USER_ACCOUNT="asfrsvc"
 LICENSE='Visual_COBOL_for_Eclipse.mflic'
 INSTALL_BINARIES='setup_visualcobol_deveclipse_6.0_redhat_x86_64'
 UNINSTALL_BINARIES='Uninstall_VisualCOBOLEclipse6.0.sh'
@@ -39,7 +40,7 @@ send_email() {
     mailx -S replyto=no_reply@irs.gov -s "${EMAIL_SUBJECT}" ${EMAIL} < "${LOGDIR}/${LOG_FILE}"
 }
 
-Install_YUM_packages() {
+install_yum_packages() {
     # YUM Installation Sequence.
     log "Starting YUM Installation..."
     yum install -y ${YUM_PACKAGES} 2>&1 | tee -a "${LOGDIR}/${LOG_FILE}"
@@ -62,7 +63,7 @@ echo "${EMAIL}"
 install() {
     
     ACTION_PERFORMED='Install and Verify'
-    LOG_FILE="Visual_COBOL_${VERSION}-${ACTION_PERFORMED}-${DATE}.log"
+    LOG_FILE="${INSTALL_BINARIES}-${ACTION_PERFORMED}-${DATE}.log"
     log "${ACTION_PERFORMED}"
 
 
@@ -72,7 +73,7 @@ install() {
     fi
 
     # Install required libraries
-    Install_YUM_packages
+    install_yum_packages
 
     # Ensure TMPDIR exists
     mkdir -p "${TMPDIR}"
@@ -83,18 +84,18 @@ install() {
     mv ${deploy_dir}/"${INSTALL_BINARIES}" "${TMPDIR}"
     
     # Create user account if needed
-    grep asfrsvc /etc/passwd > /dev/null 2>&1
+    grep "${USER_ACCOUNT}" /etc/passwd > /dev/null 2>&1
     if [[ $? -ne 0 ]]; then
-        log "Creating asfrsvc account..."
-        /usr/sbin/useradd -g xbag-dev-devl-asfr -d /home/asfrsvc -m -s /bin/bash -c "GENERIC, ASFR Service Account, [ISVC]" asfrsvc
-        mv /home/asfrsvc/.bash_profile /home/asfrsvc/.bash_profile."${DATE}"
-        cp -p "${TMPDIR}/bash_profile" /home/asfrsvc/.bash_profile
-        chown -R asfrsvc:xbag-dev-devl-asfr /home/asfrsvc
-        log "asfrsvc Account created!"
+        log "Creating ${USER_ACCOUNT} account..."
+        /usr/sbin/useradd -g xbag-dev-devl-asfr -d "/home/${USER_ACCOUNT}" -m -s /bin/bash -c "GENERIC, ASFR Service Account, [ISVC]" "${USER_ACCOUNT}"
+        mv "/home/${USER_ACCOUNT}/.bash_profile" "/home/${USER_ACCOUNT}/.bash_profile.${DATE}"
+        cp -p "${TMPDIR}/bash_profile" "/home/${USER_ACCOUNT}/.bash_profile"
+        chown -R "${USER_ACCOUNT}:xbag-dev-devl-asfr" "/home/${USER_ACCOUNT}"
+        log "${USER_ACCOUNT} Account created!"
     fi
 
     # Disable SELinux temporarily
-    cp -p /etc/selinux/config /etc/selinux/config.bak."${DATE}"
+    cp -p /etc/selinux/config "/etc/selinux/config.bak.${DATE}"
     sed -i 's/^SELINUX=enforcing/#SELINUX=enforcing/' /etc/selinux/config
     sed -i '/#SELINUX=enforcing/a SELINUX=disabled' /etc/selinux/config
 
@@ -107,7 +108,7 @@ install() {
 
     # Clean up
     chmod -R 775 /opt/microfocus
-    chown -R asfrsvc:xbag-dev-devl-asfr /opt/microfocus
+    chown -R "${USER_ACCOUNT}:xbag-dev-devl-asfr" /opt/microfocus
     
     log "${ACTION_PERFORMED} completed."
     send_email
@@ -118,7 +119,7 @@ install() {
 uninstall() {
     
     ACTION_PERFORMED='Uninstall'
-    LOG_FILE="Visual_COBOL_${VERSION}-${ACTION_PERFORMED}-${DATE}.log"
+    LOG_FILE="${UNINSTALL_BINARIES}-${ACTION_PERFORMED}-${DATE}.log"
     log "${ACTION_PERFORMED}"
 
     # Source environment variables
@@ -133,8 +134,9 @@ uninstall() {
     fi
 
     # Remove user account and directories
-    /usr/sbin/userdel asfrsvc
-    rm -rf /opt/microfocus /home/asfrsvc
+    /usr/sbin/userdel "${USER_ACCOUNT}"
+    rm -rf /opt/microfocus "/home/${USER_ACCOUNT}"
+
 
     # Revert SELinux configuration
     sed -i 's/^#SELINUX=enforcing/SELINUX=enforcing/' /etc/selinux/config
@@ -146,24 +148,27 @@ uninstall() {
 
 
 ## Update ##
-#update() {  } # Place main update commands here.
+update() {  
+    
+    ACTION_PERFORMED='Updating'
+    LOG_FILE="Visual_COBOL-${ACTION_PERFORMED}-${DATE}.log"
+    log "${ACTION_PERFORMED}"
+    
+    #### UnInstall function ####
+    uninstall
 
+    #### Install function ####
+    install
 
+    log "${ACTION_PERFORMED} completed."
+    send_email
+} 
 
 ## Main Execution Logic #############################
 
-case "$MODE" in
-    install)
-        install
-        ;;
-    uninstall)
-        uninstall
-        ;;
-    update)
-        update
-        ;;
-    *)
-        echo "Invalid mode. Usage: MODE={install|uninstall|update} $0 or $0 {install|uninstall|update}"
-        exit 1
-        ;;
+case ${MODE} in
+    install) install ;;
+    uninstall) uninstall ;;
+    update) update ;;
+    *) echo "Invalid mode. Usage: MODE=(install|uninstall|update)" ; exit 1 ;;
 esac
