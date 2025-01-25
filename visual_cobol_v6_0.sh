@@ -16,11 +16,15 @@
 ## Common Variables #############################################################################################
 VERSION='6.0'
 EMAIL="christopher.g.pouliot@gmail.com,${EMAIL}"
-
+INSTALLDIR="/opt/microfocus/VisualCOBOL"
+LICENSE='Visual_COBOL_for_Eclipse.mflic'
+INSTALL_BINARIES='setup_visualcobol_deveclipse_6.0_redhat_x86_64'
+UNINSTALL_BINARIES='Uninstall_VisualCOBOLEclipse6.0.sh'
 ### Variables that Do Not Change Much ######
 LOGDIR="/tmp"
 TMPDIR=/opt/app/tmp/microfocus
 DATE="$(date '+%Y-%m-%d %H:%M:%S')"
+HOSTNAME="$(uname -n)"
 
 YUM_PACKAGES="java-11-openjdk.x86_64 gcc.x86_64 spax.x86_64 glibc-*.i686 glibc-*.x86_64 glibc-devel-*.x86_64 glibc-devel.i686 libgcc-*.i686 libgcc-*.x86_64 libstdc++.x86_64 libstdc++-devel.x86_64 libstdc++-docs.x86_64 libstdc++.i686 libstdc++-devel.i686 gtk2-*.x86_64 libXtst-*.x86_64 libXtst-1.2.3-7.el8.i686 libcanberra-gtk3-0.30-18.el8.i686 libcanberra-gtk3-*.x86_64 PackageKit-gtk3-module-*.x86_64 webkit2gtk3.x86_64 xterm.x86_64 unzip.x86_64 cpp*x86_64"
 ## Common Functions  #############################################################################################
@@ -32,12 +36,12 @@ log() {
 send_email() {
     echo 'Sending-email notification...'
     EMAIL_SUBJECT="${HOSTNAME}: ${LOG_FILE} successfully."
-    cat "${LOGDIR}/${LOG_FILE}" | mailx -S replyto=no_reply@irs.gov -s "${EMAIL_SUBJECT}" ${EMAIL}
+    mailx -S replyto=no_reply@irs.gov -s "${EMAIL_SUBJECT}" ${EMAIL} < "${LOGDIR}/${LOG_FILE}"
 }
 
 Install_YUM_packages() {
     # YUM Installation Sequence.
-    echo "Starting YUM Installation..."
+    log "Starting YUM Installation..."
     yum install -y ${YUM_PACKAGES} 2>&1 | tee -a "${LOGDIR}/${LOG_FILE}"
     if [ $? -ne 0 ]; then
         log 'Failed to install prerequisites. Exiting.'
@@ -62,8 +66,8 @@ install() {
     log "${ACTION_PERFORMED}"
 
 
-    if [[ -d /opt/microfocus/VisualCOBOL/bin ]]; then
-        echo "Visual COBOL already installed. Uninstall it first before proceeding."
+    if [[ -d "${INSTALLDIR}"/bin ]]; then
+        log "Visual COBOL already installed. Uninstall it first before proceeding."
         exit 1
     fi
 
@@ -71,22 +75,22 @@ install() {
     Install_YUM_packages
 
     # Ensure TMPDIR exists
-    mkdir -p "$TMPDIR"
+    mkdir -p "${TMPDIR}"
 
     # Move necessary files
-    mv ${deploy_dir}/bash_profile $TMPDIR
-    mv ${deploy_dir}/Visual_COBOL_for_Eclipse.mflic $TMPDIR
-    mv ${deploy_dir}/setup_visualcobol_deveclipse_6.0_redhat_x86_64 $TMPDIR
+    mv ${deploy_dir}/bash_profile "${TMPDIR}"
+    mv ${deploy_dir}/"${LICENSE}" "${TMPDIR}"
+    mv ${deploy_dir}/"${INSTALL_BINARIES}" "${TMPDIR}"
     
     # Create user account if needed
     grep asfrsvc /etc/passwd > /dev/null 2>&1
     if [[ $? -ne 0 ]]; then
-        echo "Creating asfrsvc account..."
+        log "Creating asfrsvc account..."
         /usr/sbin/useradd -g xbag-dev-devl-asfr -d /home/asfrsvc -m -s /bin/bash -c "GENERIC, ASFR Service Account, [ISVC]" asfrsvc
         mv /home/asfrsvc/.bash_profile /home/asfrsvc/.bash_profile."${DATE}"
-        cp -p $TMPDIR/bash_profile /home/asfrsvc/.bash_profile
+        cp -p "${TMPDIR}/bash_profile" /home/asfrsvc/.bash_profile
         chown -R asfrsvc:xbag-dev-devl-asfr /home/asfrsvc
-        echo "asfrsvc Account created!"
+        log "asfrsvc Account created!"
     fi
 
     # Disable SELinux temporarily
@@ -95,11 +99,11 @@ install() {
     sed -i '/#SELINUX=enforcing/a SELINUX=disabled' /etc/selinux/config
 
     # Perform installation
-    chmod 755 $TMPDIR/setup_visualcobol_deveclipse_6.0_redhat_x86_64
-    $TMPDIR/setup_visualcobol_deveclipse_6.0_redhat_x86_64 -silent -IacceptEULA -installlocation="/opt/microfocus/VisualCOBOL" >> "${LOGDIR}/${LOG_FILE}"
+    chmod 755 "${TMPDIR}/${INSTALL_BINARIES}"
+    "${TMPDIR}/${INSTALL_BINARIES}" -silent -IacceptEULA -installlocation="${INSTALLDIR}" >> "${LOGDIR}/${LOG_FILE}"
 
     # Install license
-    /opt/microfocus/VisualCOBOL/bin/cesadmintool.sh -install $TMPDIR/Visual_COBOL_for_Eclipse.mflic >> "${LOGDIR}/${LOG_FILE}"
+    "${INSTALLDIR}/bin/cesadmintool.sh" -install "${TMPDIR}/${LICENSE}" >> "${LOGDIR}/${LOG_FILE}"
 
     # Clean up
     chmod -R 775 /opt/microfocus
@@ -118,13 +122,13 @@ uninstall() {
     log "${ACTION_PERFORMED}"
 
     # Source environment variables
-    source /opt/microfocus/VisualCOBOL/bin/cobsetenv &>> "${LOGDIR}/${LOG_FILE}"
+    . "${INSTALLDIR}/bin/cobsetenv" &>> "${LOGDIR}/${LOG_FILE}"
 
     # Uninstall Visual COBOL 
-    if [[ -x /opt/microfocus/VisualCOBOL/bin/Uninstall_VisualCOBOLEclipse6.0.sh ]]; then
-        echo "yes" | /opt/microfocus/VisualCOBOL/bin/Uninstall_VisualCOBOLEclipse6.0.sh &>> "${LOGDIR}/${LOG_FILE}"
+    if [[ -x "${INSTALLDIR}/bin/${UNINSTALL_BINARIES}" ]]; then
+        log "yes" | "${INSTALLDIR}/bin/${UNINSTALL_BINARIES}" &>> "${LOGDIR}/${LOG_FILE}"
     else
-        echo "Uninstallation script not found or not executable!" >> "${LOGDIR}/${LOG_FILE}"
+        log "Uninstallation script not found or not executable!" >> "${LOGDIR}/${LOG_FILE}"
         exit 1
     fi
 
