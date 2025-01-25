@@ -100,16 +100,39 @@ install() {
     fi
 
     # Disable SELinux temporarily
-    cp -p /etc/selinux/config "/etc/selinux/config.bak.${DATE}"
-    sed -i 's/^SELINUX=enforcing/#SELINUX=enforcing/' /etc/selinux/config
-    sed -i '/#SELINUX=enforcing/a SELINUX=disabled' /etc/selinux/config
+    #cp -p /etc/selinux/config "/etc/selinux/config.bak.${DATE}"
+    #sed -i 's/^SELINUX=enforcing/#SELINUX=enforcing/' /etc/selinux/config
+    #sed -i '/#SELINUX=enforcing/a SELINUX=disabled' /etc/selinux/config
 
-    # Perform installation
-    chmod 755 "${INSTALL_BINARIES_FILE}"
-    "${INSTALL_BINARIES_FILE}" -silent -IacceptEULA -installlocation="${INSTALLDIR}" >> "${LOGDIR}/${LOG_FILE}"
+    # Temporarily disable SELinux
+    if [[ "$(getenforce)" != "Disabled" ]]; then
+        setenforce 0
+        log "Temporarily disabled SELinux (runtime-only)."
+    else
+        log "SELinux is already disabled."
+    fi
+
+    log "Starting Visual COBOL silent installation..."
+    if ! "${INSTALL_BINARIES_FILE}" -silent -IacceptEULA -installlocation="${INSTALLDIR}" >> "${LOGDIR}/${LOG_FILE}" 2>&1; then
+        log "Error: Silent installation failed for Visual COBOL. Check ${LOGDIR}/${LOG_FILE} for details."
+        exit 1
+    else
+        log "Silent installation completed successfully. Visual COBOL installed in ${INSTALLDIR}."
+    fi
+
 
     # Install license
-    "${INSTALLDIR}/bin/cesadmintool.sh" -install "${LICENSE_FILE}" >> "${LOGDIR}/${LOG_FILE}"
+    if ! "${INSTALLDIR}/bin/cesadmintool.sh" -install "${LICENSE_FILE}" >> "${LOGDIR}/${LOG_FILE}" 2>&1; then
+        log "Error: Failed to install license. Check ${LOGDIR}/${LOG_FILE} for details."
+        exit 1
+    fi
+
+
+    # Re-enable SELinux
+    if [[ "$(getenforce)" != "Disabled" ]]; then
+        setenforce 1
+        log "Re-enabled SELinux (runtime-only)."
+    fi
 
     # Clean up
     chmod -R 775 /opt/microfocus
@@ -127,6 +150,14 @@ uninstall() {
     LOG_FILE="${UNINSTALL_BINARIES}-${ACTION_PERFORMED}-${DATE}.log"
     log "${ACTION_PERFORMED}"
 
+    # Temporarily disable SELinux
+    if [[ "$(getenforce)" != "Disabled" ]]; then
+        setenforce 0
+        log "Temporarily disabled SELinux (runtime-only) for uninstallation."
+    else
+        log "SELinux is already disabled."
+    fi
+    
     # Check source environment variables
     if [[ -f "${INSTALLDIR}/bin/cobsetenv" ]]; then
         . "${INSTALLDIR}/bin/cobsetenv" &>> "${LOGDIR}/${LOG_FILE}"
@@ -158,9 +189,15 @@ uninstall() {
     /usr/sbin/userdel "${USER_ACCOUNT}"
     rm -rf /opt/microfocus "/home/${USER_ACCOUNT:?}"
 
+    # Re-enable SELinux
+    if [[ "$(getenforce)" != "Disabled" ]]; then
+        setenforce 1
+        log "Re-enabled SELinux (runtime-only)."
+    fi
+    
     # Revert SELinux configuration
-    sed -i 's/^#SELINUX=enforcing/SELINUX=enforcing/' /etc/selinux/config
-    sed -i '/SELINUX=disabled/d' /etc/selinux/config
+    #sed -i 's/^#SELINUX=enforcing/SELINUX=enforcing/' /etc/selinux/config
+    #sed -i '/SELINUX=disabled/d' /etc/selinux/config
 
     log "${ACTION_PERFORMED} completed."
     send_email
