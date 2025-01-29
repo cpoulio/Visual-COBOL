@@ -11,22 +11,25 @@
 # and run: ./Visual Cobal v6.0.sh
 # To uninstall Visual Cobal v6.0, simply run: ./Visual Cobal v6.0.sh uninstall
 # To update Visual Cobal v6.0 replace the compressed file, repackage to nexus and then simply run: ./Visual Cobal v6.0.sh update
+#
+# Default Visual Cobol log files are saved in /var/mfcobol/logs
 ###############################################################################################################
 
 ## Common Variables #############################################################################################
 EMAIL="christopher.g.pouliot@gmail.com,${EMAIL}"
+VERSION="10.0"
 INSTALLDIR="/opt/microfocus/VisualCOBOL"
 USER_ACCOUNT="asfrsvc"
 LICENSE='Visual_COBOL_for_Eclipse.mflic'
-INSTALL_BINARIES='setup_visualcobol_deveclipse_6.0_redhat_x86_64'
-UNINSTALL_BINARIES='Uninstall_VisualCOBOLEclipse6.0.sh'
+INSTALL_BINARIES="setup_visualcobol_deveclipse_${VERSION}_redhat_x86_64"
+UNINSTALL_BINARIES="Uninstall_VisualCOBOLEclipse_${VERSION}.sh"
 
 ## Variables that Do Not Change Much ######
 LOGDIR="/tmp"
-TMPDIR=/opt/app/tmp/microfocus
+#TMPDIR=/opt/app/tmp/microfocus
 DATE="$(date '+%Y-%m-%d %H:%M:%S')"
 HOSTNAME="$(uname -n)"
-YUM_PACKAGES="java-11-openjdk.x86_64 gcc.x86_64 spax.x86_64 glibc-*.i686 glibc-*.x86_64 glibc-devel-*.x86_64 glibc-devel.i686 libgcc-*.i686 libgcc-*.x86_64 libstdc++.x86_64 libstdc++-devel.x86_64 libstdc++-docs.x86_64 libstdc++.i686 libstdc++-devel.i686 gtk2-*.x86_64 libXtst-*.x86_64 libXtst-1.2.3-7.el8.i686 libcanberra-gtk3-0.30-18.el8.i686 libcanberra-gtk3-*.x86_64 PackageKit-gtk3-module-*.x86_64 webkit2gtk3.x86_64 xterm.x86_64 unzip.x86_64 cpp*x86_64"
+YUM_PACKAGES="java-11-openjdk.x86_64 gcc.x86_64 spax.x86_64 glibc-*.i686 glibc-*.x86_64 glibc-devel-*.x86_64 glibc-devel.i686 libgcc-*.i686 libgcc-*.x86_64 libstdc++.x86_64 libstdc++-devel.x86_64 libstdc++.i686 libstdc++-devel.i686 xterm.x86_64 awk.x86_64 ed.x86_64 psmisc.x86_64 sed.x86_64 tar.x86_64 which.x86_64 pax.x86_64 gtk2-*.x86_64 libXtst-*.x86_64 libXtst-1.2.3-7.el8.i686 libcanberra-gtk3-0.30-18.el8.i686 libcanberra-gtk3-*.x86_64 PackageKit-gtk3-module-*.x86_64 webkit2gtk3.x86_64 unzip.x86_64 cpp.x86_64"
 
 ## Common Functions  #############################################################################################
 
@@ -37,7 +40,7 @@ log() {
 send_email() {
     log 'Sending-email notification...'
     EMAIL_SUBJECT="${HOSTNAME}: ${LOG_FILE} successfully."
-    mailx -S replyto=no_reply@irs.gov -s "${EMAIL_SUBJECT}" "${EMAIL}" < "${LOGDIR}/${LOG_FILE}"
+    mailx -s "${EMAIL_SUBJECT}" "${EMAIL}" < "${LOGDIR}/${LOG_FILE}"
 }
 
 install_yum_packages() {
@@ -205,21 +208,67 @@ uninstall() {
 
 
 ## Update ##
-update() {  
+update () {    
     
-    ACTION_PERFORMED='Updated'
+    ACTION_PERFORMED='Upgrade'
     LOG_FILE="Visual_COBOL-${ACTION_PERFORMED}-${DATE}.log"
     log "${ACTION_PERFORMED}"
-    
-    #### UnInstall function ####
-    uninstall
 
-    #### Install function ####
-    install
+    # Check if Visual COBOL is already installed
+    if [[ -d "${INSTALLDIR}" ]]; then
+        log "Existing Visual COBOL installation detected. Proceeding with backup and upgrade."
+
+        # Backup current installation
+        mkdir -p "${BACKUP_DIR}"
+        BACKUP_DIR="${INSTALLDIR}_backup_${DATE}"
+        log "Creating backup of current installation at ${BACKUP_DIR}."
+        if ! cp -r "${INSTALLDIR}" "${BACKUP_DIR}"; then
+            log "Error: Failed to create backup. Upgrade aborted."
+            exit 1
+        fi
+
+        # Preserve licensing and configuration
+        LICENSE_BACKUP="${BACKUP_DIR}/license_backup.mflic"
+        CONFIG_BACKUP="${BACKUP_DIR}/config_backup"
+
+        log "Backing up license file."
+        if ! cp "${INSTALLDIR}/etc/mf-license.dat" "${LICENSE_BACKUP}" 2>/dev/null; then
+            log "Warning: License file not found. Skipping license backup."
+        fi
+
+        log "Backing up configuration files."
+        if ! cp -r "${INSTALLDIR}/etc" "${CONFIG_BACKUP}"; then
+            log "Warning: Configuration backup failed. Skipping configuration backup."
+        fi
+
+        # Install the new version
+        log "Installing Visual COBOL ${VERSION}."
+        install
+
+        # Validate installation
+        log "Validating Visual COBOL ${VERSION} installation."
+        if "${INSTALLDIR}/bin/cob" --version | grep -q "${VERSION}"; then
+            log "Validation successful: Visual COBOL ${VERSION} installed correctly."
+
+            # Delete custom backup after successful validation
+            log "Deleting custom backup at ${BACKUP_DIR}."
+            rm -rf "${BACKUP_DIR}"
+        else
+            log "Validation failed: Visual COBOL ${VERSION} installation unsuccessful. Custom backup retained at ${BACKUP_DIR}."
+            exit 1
+        fi
+
+        log "Upgrade to Visual COBOL ${VERSION} completed successfully."
+    else
+        log "No existing installation found. Please use the install mode for a fresh installation."
+        exit 1
+    fi
 
     log "${ACTION_PERFORMED} completed."
     send_email
-} 
+
+}
+
 
 ## Main Execution Logic #############################
 
