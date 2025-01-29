@@ -33,7 +33,7 @@ YUM_PACKAGES="java-11-openjdk.x86_64 gcc.x86_64 spax.x86_64 glibc-*.i686 glibc-*
 libgcc-*.i686 libgcc-*.x86_64 libstdc++.x86_64 libstdc++-devel.x86_64 libstdc++.i686 libstdc++-devel.i686 xterm.x86_64 \
 awk.x86_64 ed.x86_64 psmisc.x86_64 sed.x86_64 tar.x86_64 which.x86_64 pax.x86_64 gtk2-*.x86_64 libXtst-*.x86_64 \
 libXtst-1.2.3-7.el8.i686 libcanberra-gtk3-0.30-18.el8.i686 libcanberra-gtk3-*.x86_64 PackageKit-gtk3-module-*.x86_64 \
-webkit2gtk3.x86_64 unzip.x86_64 cpp.x86_64"
+webkit2gtk3.x86_64 unzip.x86_64 cpp.x86_64 systemd-libs.i686"
 
 ## Common Functions  #############################################################################################
 
