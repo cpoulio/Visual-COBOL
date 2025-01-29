@@ -1,50 +1,30 @@
-#!/bin/bash -x
+#!/bin/bash
 #
-#  NO INPUT is required in Ansible Deployment unless;
-#       -  You need to override the MODE (default is install, other valus is uninstall)
-#       -  You need to provide a INSTALLDIR (default is /opt/app)
-#
+# ${deploy_dir} is set by Ansible and represents the directory where the script is executed.
+# No need to set a default for ${deploy_dir} since it's provided by Ansible.
+# You have to have something (MODE for example ) to pass into the script so you can use the Options {install| uninstall| update}. Install is the default.
+# **** IMPORTANT*****  MODE has to stand for NULL ("") so the if an Option is selecet then the it will excicute the default is install. ****
 
-TMPDIR=/opt/app/tmp/microfocus
-
-# Check if the Emails are passed
-#if [[ E"$EMAIL" = "E" ]]; then
-#   EMAIL="EMAIL@email.com"
-#else
-#   EMAIL="Palanisamy.K.Payiran@irs.gov,michael.j.briscoejr@irs.gov,${EMAIL}"
-#fi
-
-echo "EMAIL: $EMAIL"
-
-# Check what mode was passed
-if [[ M"$MODE" = "M" || M"$MODE" = "Minstall" || M"$MODE" = "MInstall" ]]; then
-   MODE=install
-elif [[ M"$MODE" = "Muninstall" || M"$MODE" = "MUninstall" ]]; then
-   MODE=uninstall
-else
-   echo -e "\nThe incorret Mode=$MODE was passed. Deployment aborted!\n"
-   exit 0
+if [[ ${MODE} = "" ]]; then
+   MODE="install"
 fi
 
-echo "MODE: $MODE"
+##################################################################################################################
 
-#Lets start the install/uninstall
-mkdir -p /opt/app/tmp/microfocus
-TMPDIR=/opt/app/tmp/microfocus
-if [[ "$MODE" = "install" ]]; then
-   if [[ -d /opt/microfocus/VisualCOBOL/bin ]]; then
-      echo -e "\nMicrofocus Visual COBOL was already installed. Uninstall it first before attempting to install it.\n"
-      exit 0
-   fi
-   mv ${deploy_dir}/bash_profile $TMPDIR
-   mv ${deploy_dir}/Visual_COBOL_for_Eclipse.mflic $TMPDIR
-   mv ${deploy_dir}/run_install_visual_cobol_v6_0.sh $TMPDIR
-   mv ${deploy_dir}/setup_visualcobol_deveclipse_6.0_redhat_x86_64 $TMPDIR
-   $TMPDIR/run_install_visual_cobol_v6_0.sh $EMAIL
-elif [[ "$MODE" = "uninstall" ]]; then
-   mv ${deploy_dir}/run_uninstall_visual_cobol_v6_0.sh $TMPDIR
-   $TMPDIR/run_uninstall_visual_cobol_v6_0.sh $EMAIL
-fi
+echo "MODE=${MODE}" # Testing to see if install or uninstall comes across
+echo "Deployment Directory=${deploy_dir}"  # Confirming the directory set by Ansible
+echo "EMAIL=${EMAIL}" #Email recipient
 
-# Lets clean up the directory
-rm -rf /opt/app/tmp/microfocus
+SCRIPT="${deploy_dir}/visual_cobol_v10.sh"
+#SCRIPT="./visual_cobol_v10.sh"
+
+case ${MODE} in
+    install|uninstall|update)
+        echo "Switching to ${MODE} mode..."
+        EMAIL=${EMAIL} ${SCRIPT} ${MODE}
+        ;;
+    *)
+        echo "Invalid mode. Usage: $0 {install|uninstall|update}"
+        exit 1
+        ;;
+esac
