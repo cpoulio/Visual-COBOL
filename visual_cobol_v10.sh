@@ -189,13 +189,12 @@ uninstall() {
     systemctl stop mfserver 2>/dev/null || log "Warning: Could not stop Micro Focus Directory Server (mfserver). It may not be running."
     systemctl stop escwa 2>/dev/null || log "Warning: Could not stop ESCWA service. It may not be running."
 
+    # Find uninstall scripts dynamically
+    UNINSTALL_BINARIES_FILE=$(find "${INSTALLDIR}" -type f \( -iname 'uninstall*visual*.sh' \) 2>/dev/null | head -n 1)
+    UNINSTALL_LICENSE_FILE=$(find "${INSTALLDIR}" -type f \( -iname 'uninstall*license*.sh' \) 2>/dev/null | head -n 1)
 
-    
-    log "Locating uninstall script."
-    UNINSTALL_BINARIES_FILE="${INSTALLDIR}/bin/${UNINSTALL_BINARIES}"
-    # Verify uninstall script exists
-    if [[ ! -f "${UNINSTALL_BINARIES_FILE}" ]]; then
-        log "Error: Uninstall script not found (${UNINSTALL_BINARIES_FILE}). Exiting."
+    if [[ -z "${UNINSTALL_BINARIES_FILE}" ]]; then
+        log "Error: Uninstall script not found in ${INSTALLDIR}. Exiting."
         exit 1
     fi
 
@@ -205,39 +204,41 @@ uninstall() {
         chmod +x "${UNINSTALL_BINARIES_FILE}"
     fi
 
-    log "Running Visual COBOL uninstallation script."
-    if ! "${INSTALLDIR}/bin/${UNINSTALL_BINARIES}" -silent >> "${LOGDIR}/${LOG_FILE}" 2>&1; then
+    log "Running Visual COBOL uninstallation script: ${UNINSTALL_BINARIES_FILE}"
+    if ! "${UNINSTALL_BINARIES_FILE}" -silent >> "${LOGDIR}/${LOG_FILE}" 2>&1; then
         log "Error: Uninstallation failed."
         exit 1
     fi
     log "Visual COBOL uninstalled successfully."
 
-
-    # Verify license uninstall script exists
-    UNINSTALL_LICENSE_FILE="/opt/microfocus/licensing/bin/${UNINSTALL_LICENSE}"
-    if [[ -f "${UNINSTALL_LICENSE_FILE}" ]]; then
+    if [[ -n "${UNINSTALL_LICENSE_FILE}" ]]; then
         # Ensure uninstall license script is executable
         if [[ ! -x "${UNINSTALL_LICENSE_FILE}" ]]; then
             log "License uninstall script is not executable. Fixing permissions."
             chmod +x "${UNINSTALL_LICENSE_FILE}"
         fi
 
-        log "Removing Micro Focus License Administration."
+        log "Removing Micro Focus License Administration: ${UNINSTALL_LICENSE_FILE}"
         if ! "${UNINSTALL_LICENSE_FILE}" -silent >> "${LOGDIR}/${LOG_FILE}" 2>&1; then
             log "Warning: Failed to uninstall Micro Focus License Server. Manual removal may be required."
         else
             log "Micro Focus License Server uninstalled successfully."
         fi
+    else
+        log "License uninstall script not found. Skipping license removal."
     fi
 
-    log "Cleaning up remaining files and directories."
-    rm -rf /opt/microfocus /var/microfocus /etc/opt/microfocus
+    log "Checking for remaining Micro Focus directories."
+    for DIR in /opt/microfocus /var/opt/microfocus /etc/opt/microfocus; do
+        if [[ -d "$DIR" ]]; then
+            log "Warning: Directory $DIR still exists. Manual removal may be required."
+        fi
+    done
 
     log "Re-enabling SELinux."
     if ! setenforce 1; then
         log "Error: Failed to re-enable SELinux. Manual intervention required."
     fi
-    setenforce 1
 
     send_email
 }
