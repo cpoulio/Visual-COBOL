@@ -21,8 +21,6 @@ INSTALLDIR="/opt/microfocus/VisualCOBOL"
 USER_ACCOUNT="asfrsvc"
 LICENSE='Visual_COBOL_for_Eclipse.mflic'
 INSTALL_BINARIES="setup_visualcobol_deveclipse_10.0_redhat_x86_64"
-UNINSTALL_BINARIES="Uninstall_VisualCOBOLDevelopmentHub10.0.sh"
-UNINSTALL_LICENSE="UnInstallMFLicenseServer.sh"
 
 ## Variables that Do Not Change Much ######
 LOGDIR="/tmp"
