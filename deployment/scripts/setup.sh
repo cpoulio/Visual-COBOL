@@ -26,11 +26,11 @@ capture_value() {
 while [[ $# -gt 0 ]]; do
     ARG="${1,,}"  # Convert argument to lowercase for case insensitivity
     case "$ARG" in
-        --email|-e)
+        --email)
             capture_value EMAIL "$@"
             shift
             ;;
-        --mode|-m)
+        --mode)
             capture_value MODE "$@"
             shift
             ;;
@@ -50,4 +50,7 @@ echo "Email: ${EMAIL:-None}"
 SCRIPT="${deploy_dir}/visual_cobol_v10.sh" # Deploy with Ansible
 #SCRIPT="./visual_cobol_v10.sh" # Local testing
 
-EMAIL=${EMAIL} ${SCRIPT} "${MODE}"
+# Execute Main Script with Flags
+${SCRIPT} --mode "${MODE}" --email "${EMAIL}" # Add additional flags as needed.
+
+# End of Script
