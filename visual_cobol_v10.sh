@@ -103,7 +103,14 @@ install() {
     if ! id "${USER_ACCOUNT}" &>/dev/null; then
         log "Creating ${USER_ACCOUNT} account..."
         /usr/sbin/useradd -g xbag-dev-devl-asfr -d "/home/${USER_ACCOUNT}" -m -s /bin/bash -c "GENERIC, ASFR Service Account, [ISVC]" "${USER_ACCOUNT}"
-        log "${USER_ACCOUNT} account created successfully."
+        
+        # Verify user creation
+        if id "${USER_ACCOUNT}" &>/dev/null; then
+            log "${USER_ACCOUNT} account created successfully."
+        else
+            log "Error: Failed to create ${USER_ACCOUNT} account. Exiting."
+            exit 1
+        fi
     else
         log "User account ${USER_ACCOUNT} already exists. Skipping creation."
     fi
@@ -127,6 +134,13 @@ install() {
     log "Starting Visual COBOL installation."
     if ! "${INSTALL_BINARIES_FILE}" -silent -IacceptEULA -installlocation="${INSTALLDIR}" >> "${LOGDIR}/${LOG_FILE}" 2>&1; then
         log "Error: Installation failed."
+
+        # Re-enable SELinux only if it was originally enforcing
+        if [[ "${SELINUX_WAS_ENFORCING}" == "true" ]]; then
+            log "Re-enabling SELinux due to installation failure."
+            setenforce 1
+        fi
+
         exit 1
     fi
     log "Visual COBOL installed successfully in ${INSTALLDIR}."
