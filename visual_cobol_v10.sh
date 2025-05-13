@@ -226,6 +226,44 @@ install() {
     send_email
 }
 
+upgrade() {
+    ACTION_PERFORMED='Upgrade'
+    LOG_FILE="Visual_COBOL-${ACTION_PERFORMED}-${DATE}.log"
+    log "${ACTION_PERFORMED}"
+
+    # Verify prior installation exists
+    if [[ ! -d "${INSTALLDIR}" ]]; then
+        log "No existing Visual COBOL 6.0 installation found at ${INSTALLDIR}. Cannot proceed with upgrade."
+        exit 1
+    fi
+
+    # Stop any running services
+    log "Stopping Visual COBOL services before upgrade..."
+    systemctl stop mfserver 2>/dev/null || log "mfserver not running."
+    systemctl stop escwa 2>/dev/null || log "escwa not running."
+
+    # Backup current installation
+    BACKUP_DIR="${INSTALLDIR}_backup_$(date +%Y%m%d_%H%M%S)"
+    log "Backing up existing installation to ${BACKUP_DIR}"
+    mv "${INSTALLDIR}" "${BACKUP_DIR}" || {
+        log "Backup failed. Upgrade aborted."
+        exit 1
+    }
+
+    # Remove deprecated Sentinel RMS licensing if present
+    if find /opt/microfocus/licensing/ -iname '*Sentinel*' | grep -q .; then
+        log "Deprecated Sentinel RMS licensing found. Removing..."
+        rm -rf /opt/microfocus/licensing/Sentinel*
+    else
+        log "No Sentinel licensing found or already removed."
+    fi
+
+    # Proceed with install using existing install() function
+    install
+
+    # Post-upgrade license check
+    log "Upgrade complete. Reminder: all COBOL applications compiled under 6.0 must be recompiled for 10.0 compatibility."
+}
 
 ## Uninstall ##
 uninstall() {
