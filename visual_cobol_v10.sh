@@ -340,6 +340,6 @@ uninstall() {
 case ${MODE} in
     install) install ;;
     uninstall) uninstall ;;
-    update) update ;;
-    *) log "Invalid mode. Usage: MODE=(install|uninstall|update)" ; exit 1 ;;
+    upgrade) upgrade ;;
+    *) log "Invalid mode. Usage: MODE=(install|uninstall|upgrade)" ; exit 1 ;;
 esac
