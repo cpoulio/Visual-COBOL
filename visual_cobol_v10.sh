@@ -292,7 +292,11 @@ uninstall() {
     for DIR in /opt/microfocus /var/opt/microfocus /etc/opt/microfocus; do
         if [[ -d "$DIR" ]]; then
             log "Attempting to remove $DIR"
-            rm -rf "$DIR" && log "Removed $DIR" || log "Warning: Could not remove $DIR. Manual removal may be required."
+            if rm -rf "$DIR"; then
+                log "Removed $DIR"
+            else
+                log "Warning: Could not remove $DIR. Manual removal may be required."
+            fi
         fi
     done
 
