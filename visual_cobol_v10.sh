@@ -26,7 +26,7 @@ INSTALL_BINARIES="setup_visualcobol_deveclipse_10.0_redhat_x86_64"
 LOGDIR="/tmp"
 DATE="$(date '+%Y-%m-%d_%H:%M:%S')"
 VISUAL_COBOL_VERSION=$("${INSTALLDIR}/bin/cob" --version 2>&1)
-
+SKIP_IF_ALREADY_INSTALLED=true
 YUM_PACKAGES="java-11-openjdk.x86_64 \
 gcc.x86_64 glibc-*.i686 glibc-*.x86_64 glibc-devel-*.x86_64 glibc-devel.i686 \
 libgcc-*.i686 libgcc-*.x86_64 libstdc++.x86_64 libstdc++-devel.x86_64 libstdc++.i686 libstdc++-devel.i686 \
@@ -48,13 +48,16 @@ send_email() {
 }
 
 install_yum_packages() {
-    # YUM Installation Sequence.
     log "Starting YUM Installation..."
-    if ! yum install -y "${YUM_PACKAGES}" 2>&1 | tee -a "${LOGDIR}/${LOG_FILE}"; then
-        log "Failed to install prerequisites. Exiting."
+
+    if yum install -y ${YUM_PACKAGES} 2>&1 | tee -a "${LOGDIR}/${LOG_FILE}" | grep -q "Nothing to do."; then
+        log "YUM packages already installed. Skipping installation."
+    elif [[ ${PIPESTATUS[0]} -ne 0 ]]; then
+        log "Error: Failed to install prerequisites via YUM. Exiting."
         exit 1
+    else
+        log "Prerequisite libraries installed successfully."
     fi
-    log 'Prerequisites libraries installed successfully.'
 }
 
 check_and_disable_selinux() {
@@ -82,6 +85,23 @@ enable_selinux() {
         fi
     else
         log "SELinux was not enforcing. No action needed."
+    fi
+}
+
+ensure_install_dir_exists() {
+    log "Checking if installation directory exists: ${INSTALLDIR}"
+
+    if [[ ! -d "${INSTALLDIR}" ]]; then
+        log "Installation directory not found. Creating: ${INSTALLDIR}"
+        mkdir -p "${INSTALLDIR}" || {
+            log "Error: Failed to create ${INSTALLDIR}"
+            exit 1
+        }
+        chown root:root "${INSTALLDIR}"
+        chmod 755 "${INSTALLDIR}"
+        log "Installation directory created successfully."
+    else
+        log "Installation directory already exists: ${INSTALLDIR}"
     fi
 }
 
@@ -117,31 +137,61 @@ install() {
     fi
     
     # Check if Visual COBOL is already installed
-    if [[ -d "${INSTALLDIR}" ]]; then
-        log "Visual COBOL is already installed in ${INSTALLDIR}. Exiting."
-        exit 1
+    if [[ "${SKIP_IF_ALREADY_INSTALLED}" == "true" && -d "${INSTALLDIR}/bin" ]]; then
+        VISUAL_COBOL_VERSION=$("${INSTALLDIR}/bin/cob" --version 2>/dev/null)
+        log "Visual COBOL already installed at ${INSTALLDIR}. Version: ${VISUAL_COBOL_VERSION}"
+        return 0  # or exit 0 if outside a function
     fi
 
-    # Create user account if it doesn't exist..
-    if ! id "${USER_ACCOUNT}" &>/dev/null; then
-        log "Creating ${USER_ACCOUNT} account..."
+    # Create user account if needed
+    log "Create user account if needed"
+
+    if id "${USER_ACCOUNT}" &>/dev/null; then
+        log "User ${USER_ACCOUNT} already exists. Skipping user creation."
+    else
+        log "User ${USER_ACCOUNT} does not exist. Creating account..."
+
         if /usr/sbin/useradd -g xbag-dev-devl-asfr -d "/home/${USER_ACCOUNT}" -m -s /bin/bash -c "GENERIC, ASFR Service Account, [ISVC]" "${USER_ACCOUNT}"; then
-            log "${USER_ACCOUNT} account created successfully."
+            log "Useradd command executed successfully for ${USER_ACCOUNT}."
+
+            # ✅ Confirm the user was actually created
+            if id "${USER_ACCOUNT}" &>/dev/null; then
+                log "User ${USER_ACCOUNT} verified successfully after creation."
+
+                # Backup and apply .bash_profile
+                if [[ -f "/home/${USER_ACCOUNT}/.bash_profile" ]]; then
+                    mv "/home/${USER_ACCOUNT}/.bash_profile" "/home/${USER_ACCOUNT}/.bash_profile.${DATE}"
+                    log "Backed up existing .bash_profile for ${USER_ACCOUNT}."
+                fi
+
+                cp -p "${BASH_PROFILE_FILE}" "/home/${USER_ACCOUNT}/.bash_profile"
+                chown -R "${USER_ACCOUNT}:xbag-dev-devl-asfr" "/home/${USER_ACCOUNT}"
+                log ".bash_profile applied successfully to ${USER_ACCOUNT}."
+            else
+                log "Error: useradd succeeded but user ${USER_ACCOUNT} is not present. Aborting."
+                exit 1
+            fi
         else
-            log "Error: Failed to create ${USER_ACCOUNT} account. Exiting."
+            log "Error: useradd command failed for ${USER_ACCOUNT}. Possible system issue."
             exit 1
         fi
-    else
-        log "User account ${USER_ACCOUNT} already exists. Skipping creation."
     fi
 
     install_yum_packages
 
-    if ! "${INSTALL_BINARIES_FILE}" -silent -IacceptEULA -installlocation="${INSTALLDIR}" >> "${LOGDIR}/${LOG_FILE}" 2>&1; then
-        log "Error: Installation failed."
-        exit 1 
+    if [[ "${SKIP_IF_ALREADY_INSTALLED}" != "true" ]]; then
+        ensure_install_dir_exists
+
+        log "Starting Visual COBOL silent installation..."
+        if ! "${INSTALL_BINARIES_FILE}" -silent -IacceptEULA -installlocation="${INSTALLDIR}" >> "${LOGDIR}/${LOG_FILE}" 2>&1; then
+            log "Error: Silent installation failed. Check ${LOGDIR}/${LOG_FILE} for details."
+            exit 1
+        else
+            log "Silent installation completed successfully. Visual COBOL installed in ${INSTALLDIR}."
+        fi
     fi
-    log "Visual COBOL installed successfully in ${INSTALLDIR}."
+
+
 
     # Validate installation
     if [[ -z "${VISUAL_COBOL_VERSION}" || "${VISUAL_COBOL_VERSION}" == "" ]]; then
